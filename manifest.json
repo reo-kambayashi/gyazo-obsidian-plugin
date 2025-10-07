@@ -1,11 +1,9 @@
 {
   "id": "gyazo",
-  "name": "Gyazo Viewer",
-  "version": "1.0.4",
+  "name": "Gyazo Viewer Plugin",
+  "version": "1.0.0",
   "minAppVersion": "0.15.0",
   "description": "Display your Gyazo captures and embed them into your notes.",
-  "author": "Helpfeel Inc.",
-  "authorUrl": "https://corp.helpfeel.com",
-  "fundingUrl": "https://gyazo.com/pricing",
+  "author": "Reo Kambayshi",
   "isDesktopOnly": false
 }
