@@ -13,18 +13,40 @@ class GyazoSettingTab extends PluginSettingTab {
     containerEl.empty();
     containerEl.createEl("h2", { text: "Gyazo" });
 
-    new Setting(containerEl)
+    const tokenSetting = new Setting(containerEl)
       .setName(t.accessTokenLabel)
-      .setDesc(t.accessTokenDesc)
-      .addText((text) => {
-        text.setPlaceholder("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
-        text.setValue(this.plugin.settings.accessToken);
-        text.onChange(async (value) => {
-          this.plugin.settings.accessToken = value.trim();
-          this.plugin.api.setAccessToken(this.plugin.settings.accessToken);
-          await this.plugin.saveSettings();
-        });
+      .setDesc(t.accessTokenDesc);
+
+    const tokenInput = tokenSetting.addText((text) => {
+      text.setPlaceholder("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+      text.setValue(this.plugin.settings.accessToken);
+      text.inputEl.type = "password";
+      text.inputEl.autocomplete = "off";
+      text.inputEl.setAttribute("autocorrect", "off");
+      text.inputEl.setAttribute("autocapitalize", "none");
+      text.inputEl.spellcheck = false;
+      text.onChange(async (value) => {
+        const trimmed = value.trim();
+        this.plugin.settings.accessToken = trimmed;
+        if (this.plugin.api) {
+          this.plugin.api.setAccessToken(trimmed);
+        }
+        await this.plugin.saveSettings();
       });
+    });
+
+    let tokenVisible = false;
+    tokenSetting.addExtraButton((button) => {
+      button
+        .setIcon("eye")
+        .setTooltip(t.showAccessToken)
+        .onClick(() => {
+          tokenVisible = !tokenVisible;
+          tokenInput.inputEl.type = tokenVisible ? "text" : "password";
+          button.setIcon(tokenVisible ? "eye-off" : "eye");
+          button.setTooltip(tokenVisible ? t.hideAccessToken : t.showAccessToken);
+        });
+    });
 
     new Setting(containerEl)
       .setName(t.openApiDashboard)
