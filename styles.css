@@ -3,6 +3,7 @@ Gyazo Plugin Styles
 */
 
 .gyazo-view-container {
+  position: relative;
   padding: 10px;
   overflow-y: auto;
   height: 100%;

@@ -1,8 +1,8 @@
 {
   "accessToken": "",
   "language": "ja",
-  "oauthState": "",
   "includePermalinkLinks": true,
   "enableImageWidth": false,
-  "imageWidth": 250
+  "imageWidth": 250,
+  "oauthState": ""
 }

@@ -10,6 +10,7 @@ export class GyazoGalleryView extends ItemView {
   private loading = false;
   private statusEl: HTMLDivElement | null = null;
   private gridEl: HTMLDivElement | null = null;
+  private dropOverlayEl: HTMLDivElement | null = null;
   private dropHintEl: HTMLDivElement | null = null;
   private toolbarRefreshButton: HTMLButtonElement | null = null;
   private selectedImageId: string | null = null;
@@ -64,18 +65,41 @@ export class GyazoGalleryView extends ItemView {
   }
 
   private registerDropEvents(): void {
+    const showOverlay = () => {
+      if (this.dropOverlayEl) return;
+      this.dropOverlayEl = this.contentEl.createDiv();
+      this.dropOverlayEl.style.position = "absolute";
+      this.dropOverlayEl.style.top = "0";
+      this.dropOverlayEl.style.left = "0";
+      this.dropOverlayEl.style.width = "100%";
+      this.dropOverlayEl.style.height = "100%";
+      this.dropOverlayEl.style.border = "2px dashed var(--interactive-accent)";
+      this.dropOverlayEl.style.borderRadius = "6px";
+      this.dropOverlayEl.style.zIndex = "100";
+      this.dropOverlayEl.style.pointerEvents = "none";
+    };
+
+    const hideOverlay = () => {
+      if (this.dropOverlayEl) {
+        this.dropOverlayEl.remove();
+        this.dropOverlayEl = null;
+      }
+    };
+
     this.registerDomEvent(this.contentEl, "dragover", (event) => {
       event.preventDefault();
-      this.contentEl.addClass("gyazo-drop-target");
+      event.stopPropagation();
+      showOverlay();
     });
-    this.registerDomEvent(this.contentEl, "dragleave", (event) => {
-      if (event.target === this.contentEl) {
-        this.contentEl.removeClass("gyazo-drop-target");
-      }
+
+    this.registerDomEvent(this.contentEl, "dragleave", () => {
+      hideOverlay();
     });
+
     this.registerDomEvent(this.contentEl, "drop", (event) => {
       event.preventDefault();
-      this.contentEl.removeClass("gyazo-drop-target");
+      event.stopPropagation();
+      hideOverlay();
       const fileList = event.dataTransfer?.files;
       if (!fileList?.length) {
         return;

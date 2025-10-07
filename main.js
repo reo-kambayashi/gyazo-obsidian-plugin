@@ -229,6 +229,7 @@ var GyazoApiClient = class {
     builder.appendField("referer_url", options.refererUrl);
     await builder.appendFile("imagedata", file);
     const payload = builder.build();
+    const body = payload.slice().buffer;
     const request = {
       url: GYAZO_UPLOAD_ENDPOINT,
       method: "POST",
@@ -236,7 +237,7 @@ var GyazoApiClient = class {
         "Content-Type": builder.getContentType(),
         Accept: "application/json"
       },
-      body: payload.buffer,
+      body,
       throw: false
     };
     const response = await (0, import_obsidian.requestUrl)(request);
@@ -267,8 +268,10 @@ var GyazoSettingTab = class extends import_obsidian2.PluginSettingTab {
     const t = getTranslation(settings);
     containerEl.empty();
     new import_obsidian2.Setting(containerEl).setHeading().setName("Gyazo");
+    let tokenInput = null;
     const tokenSetting = new import_obsidian2.Setting(containerEl).setName(t.accessTokenLabel).setDesc(t.accessTokenDesc);
-    const tokenInput = tokenSetting.addText((text) => {
+    tokenSetting.addText((text) => {
+      tokenInput = text;
       text.setPlaceholder("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
       text.setValue(settings.accessToken);
       text.inputEl.type = "password";
@@ -288,6 +291,9 @@ var GyazoSettingTab = class extends import_obsidian2.PluginSettingTab {
     tokenSetting.addExtraButton((button) => {
       button.setIcon("eye").setTooltip(t.showAccessToken).onClick(() => {
         tokenVisible = !tokenVisible;
+        if (!tokenInput) {
+          return;
+        }
         tokenInput.inputEl.type = tokenVisible ? "text" : "password";
         button.setIcon(tokenVisible ? "eye-off" : "eye");
         button.setTooltip(tokenVisible ? t.hideAccessToken : t.showAccessToken);
@@ -411,6 +417,7 @@ var GyazoGalleryView = class extends import_obsidian3.ItemView {
     this.loading = false;
     this.statusEl = null;
     this.gridEl = null;
+    this.dropOverlayEl = null;
     this.dropHintEl = null;
     this.toolbarRefreshButton = null;
     this.selectedImageId = null;
@@ -437,11 +444,12 @@ var GyazoGalleryView = class extends import_obsidian3.ItemView {
   renderLayout() {
     const t = getTranslation(this.plugin.settings);
     const header = this.contentEl.createDiv({ cls: "gyazo-header" });
-    this.toolbarRefreshButton = header.createEl("button", {
+    const refreshButton = header.createEl("button", {
       cls: "gyazo-refresh-button",
       text: t.refreshButton
     });
-    this.registerDomEvent(this.toolbarRefreshButton, "click", () => {
+    this.toolbarRefreshButton = refreshButton;
+    this.registerDomEvent(refreshButton, "click", () => {
       void this.loadImages(true);
     });
     this.dropHintEl = this.contentEl.createDiv({
@@ -452,18 +460,37 @@ var GyazoGalleryView = class extends import_obsidian3.ItemView {
     this.gridEl = this.contentEl.createDiv({ cls: "gyazo-grid" });
   }
   registerDropEvents() {
+    const showOverlay = () => {
+      if (this.dropOverlayEl) return;
+      this.dropOverlayEl = this.contentEl.createDiv();
+      this.dropOverlayEl.style.position = "absolute";
+      this.dropOverlayEl.style.top = "0";
+      this.dropOverlayEl.style.left = "0";
+      this.dropOverlayEl.style.width = "100%";
+      this.dropOverlayEl.style.height = "100%";
+      this.dropOverlayEl.style.border = "2px dashed var(--interactive-accent)";
+      this.dropOverlayEl.style.borderRadius = "6px";
+      this.dropOverlayEl.style.zIndex = "100";
+      this.dropOverlayEl.style.pointerEvents = "none";
+    };
+    const hideOverlay = () => {
+      if (this.dropOverlayEl) {
+        this.dropOverlayEl.remove();
+        this.dropOverlayEl = null;
+      }
+    };
     this.registerDomEvent(this.contentEl, "dragover", (event) => {
       event.preventDefault();
-      this.contentEl.addClass("gyazo-drop-target");
+      event.stopPropagation();
+      showOverlay();
     });
-    this.registerDomEvent(this.contentEl, "dragleave", (event) => {
-      if (event.target === this.contentEl) {
-        this.contentEl.removeClass("gyazo-drop-target");
-      }
+    this.registerDomEvent(this.contentEl, "dragleave", () => {
+      hideOverlay();
     });
     this.registerDomEvent(this.contentEl, "drop", (event) => {
       event.preventDefault();
-      this.contentEl.removeClass("gyazo-drop-target");
+      event.stopPropagation();
+      hideOverlay();
       const fileList = event.dataTransfer?.files;
       if (!fileList?.length) {
         return;
@@ -861,7 +888,7 @@ var GyazoPlugin = class extends import_obsidian5.Plugin {
   }
   async loadSettings() {
     const data = await this.loadData();
-    this.settings = { ...DEFAULT_SETTINGS, ...data };
+    this.settings = { ...DEFAULT_SETTINGS, ...data ?? {} };
   }
   async saveSettings() {
     await this.saveData(this.settings);
