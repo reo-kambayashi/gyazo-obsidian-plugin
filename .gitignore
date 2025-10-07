@@ -1,0 +1,19 @@
+# Node.js
+node_modules/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build artifacts
+dist/
+.esbuild/
+*.tsbuildinfo
+
+# macOS
+.DS_Store
+
+# Editor metadata
+.idea/
+.vscode/

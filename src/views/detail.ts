@@ -1,29 +1,31 @@
-const { ItemView } = require("obsidian");
-const { getTranslation } = require("../i18n");
-const { formatDate } = require("../utils");
-const { VIEW_TYPE_DETAIL } = require("../constants");
+import { ItemView, type WorkspaceLeaf } from "obsidian";
+import type GyazoPlugin from "../main";
+import { getTranslation } from "../i18n";
+import { formatDate } from "../utils";
+import { VIEW_TYPE_DETAIL } from "../constants";
+import type { GyazoImage } from "../types";
 
-class GyazoDetailView extends ItemView {
-  constructor(leaf, plugin) {
+export class GyazoDetailView extends ItemView {
+  private image: GyazoImage | null = null;
+  private unregister?: () => void;
+
+  constructor(leaf: WorkspaceLeaf, private readonly plugin: GyazoPlugin) {
     super(leaf);
-    this.plugin = plugin;
-    this.image = null;
-    this.unregister = null;
   }
 
-  getViewType() {
+  override getViewType(): string {
     return VIEW_TYPE_DETAIL;
   }
 
-  getDisplayText() {
+  override getDisplayText(): string {
     return getTranslation(this.plugin.settings).detailViewTitle;
   }
 
-  getIcon() {
+  override getIcon(): string {
     return "file-image";
   }
 
-  async onOpen() {
+  override async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.addClass("gyazo-detail-view-container");
     this.renderContent();
@@ -33,15 +35,15 @@ class GyazoDetailView extends ItemView {
     });
   }
 
-  async onClose() {
+  override async onClose(): Promise<void> {
     this.image = null;
     if (this.unregister) {
       this.unregister();
-      this.unregister = null;
+      this.unregister = undefined;
     }
   }
 
-  renderContent() {
+  private renderContent(): void {
     const t = getTranslation(this.plugin.settings);
     this.contentEl.empty();
     this.contentEl.addClass("gyazo-detail-view-container");
@@ -83,31 +85,24 @@ class GyazoDetailView extends ItemView {
     }
 
     const metadata = container.createDiv({ cls: "gyazo-metadata" });
-
-    const addMeta = (label, value) => {
-      if (!value) {
-        return;
-      }
+    const addMeta = (label: string, rawValue: string | undefined | null) => {
+      const value = rawValue && rawValue.trim() ? rawValue : "-";
       const item = metadata.createDiv({ cls: "gyazo-metadata-item" });
       item.createDiv({ cls: "gyazo-metadata-label", text: label });
       item.createDiv({ cls: "gyazo-metadata-value", text: value });
     };
 
     addMeta(t.uploadDate, formatDate(this.image.created_at, this.plugin.settings.language));
-    addMeta(t.description, this.image.desc || "-");
-    addMeta(t.title, this.image.title || "-");
-    addMeta(t.source, this.image.referer_url || "-");
-    addMeta(t.app, this.image.application || "-");
-    addMeta(t.ocr, this.image.ocr || "-");
+    addMeta(t.description, this.image.desc);
+    addMeta(t.title, this.image.title);
+    addMeta(t.source, this.image.referer_url);
+    addMeta(t.app, this.image.application);
+    addMeta(t.ocr, this.image.ocr);
 
     container.createDiv({ cls: "gyazo-detail-actions" });
   }
 
-  refreshStrings() {
+  refreshStrings(): void {
     this.renderContent();
   }
 }
-
-module.exports = {
-  GyazoDetailView
-};

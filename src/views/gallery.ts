@@ -1,38 +1,36 @@
-const { ItemView, Menu, Notice, MarkdownView } = require("obsidian");
-const { getTranslation } = require("../i18n");
-const {
-  buildMarkdown,
-  resolveCopyLabel,
-  resolveErrorMessage
-} = require("../utils");
-const { VIEW_TYPE_GALLERY } = require("../constants");
+import { ItemView, MarkdownView, Menu, Notice, type WorkspaceLeaf } from "obsidian";
+import type GyazoPlugin from "../main";
+import { getTranslation } from "../i18n";
+import { buildMarkdown, resolveCopyLabel, resolveErrorMessage } from "../utils";
+import { VIEW_TYPE_GALLERY } from "../constants";
+import type { GyazoImage } from "../types";
 
-class GyazoGalleryView extends ItemView {
-  constructor(leaf, plugin) {
+export class GyazoGalleryView extends ItemView {
+  private images: GyazoImage[] = [];
+  private loading = false;
+  private statusEl: HTMLDivElement | null = null;
+  private gridEl: HTMLDivElement | null = null;
+  private dropHintEl: HTMLDivElement | null = null;
+  private toolbarRefreshButton: HTMLButtonElement | null = null;
+  private selectedImageId: string | null = null;
+
+  constructor(leaf: WorkspaceLeaf, private readonly plugin: GyazoPlugin) {
     super(leaf);
-    this.plugin = plugin;
-    this.images = [];
-    this.loading = false;
-    this.statusEl = null;
-    this.gridEl = null;
-    this.dropHintEl = null;
-    this.toolbarRefreshButton = null;
-    this.selectedImageId = null;
   }
 
-  getViewType() {
+  override getViewType(): string {
     return VIEW_TYPE_GALLERY;
   }
 
-  getDisplayText() {
+  override getDisplayText(): string {
     return getTranslation(this.plugin.settings).galleryTitle;
   }
 
-  getIcon() {
+  override getIcon(): string {
     return "image";
   }
 
-  async onOpen() {
+  override async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.addClass("gyazo-view-container");
     this.renderLayout();
@@ -40,19 +38,20 @@ class GyazoGalleryView extends ItemView {
     await this.loadImages();
   }
 
-  async onClose() {
+  override async onClose(): Promise<void> {
     this.images = [];
   }
 
-  renderLayout() {
+  private renderLayout(): void {
     const t = getTranslation(this.plugin.settings);
     const header = this.contentEl.createDiv({ cls: "gyazo-header" });
-    this.toolbarRefreshButton = header.createEl("button", {
+    const refreshButton = header.createEl("button", {
       cls: "gyazo-refresh-button",
       text: t.refreshButton
     });
-    this.toolbarRefreshButton.addEventListener("click", () => {
-      this.loadImages(true);
+    this.toolbarRefreshButton = refreshButton;
+    this.registerDomEvent(refreshButton, "click", () => {
+      void this.loadImages(true);
     });
 
     this.dropHintEl = this.contentEl.createDiv({
@@ -64,7 +63,7 @@ class GyazoGalleryView extends ItemView {
     this.gridEl = this.contentEl.createDiv({ cls: "gyazo-grid" });
   }
 
-  registerDropEvents() {
+  private registerDropEvents(): void {
     this.registerDomEvent(this.contentEl, "dragover", (event) => {
       event.preventDefault();
       this.contentEl.addClass("gyazo-drop-target");
@@ -74,20 +73,22 @@ class GyazoGalleryView extends ItemView {
         this.contentEl.removeClass("gyazo-drop-target");
       }
     });
-    this.registerDomEvent(this.contentEl, "drop", async (event) => {
+    this.registerDomEvent(this.contentEl, "drop", (event) => {
       event.preventDefault();
       this.contentEl.removeClass("gyazo-drop-target");
-      const files = Array.from(event.dataTransfer?.files || []).filter((file) =>
-        file.type.startsWith("image/")
-      );
+      const fileList = event.dataTransfer?.files;
+      if (!fileList?.length) {
+        return;
+      }
+      const files = Array.from(fileList).filter((file) => file.type.startsWith("image/"));
       if (!files.length) {
         return;
       }
-      await this.handleUpload(files);
+      void this.handleUpload(files);
     });
   }
 
-  async handleUpload(files) {
+  private async handleUpload(files: File[]): Promise<void> {
     const t = getTranslation(this.plugin.settings);
     if (!this.plugin.api) {
       return;
@@ -99,17 +100,17 @@ class GyazoGalleryView extends ItemView {
     const uploadingNotice = new Notice(t.uploading, 0);
     try {
       const results = await Promise.allSettled(
-        files.map((file) => this.plugin.api.uploadImage(file))
+        files.map(async (file) => this.plugin.api!.uploadImage(file))
       );
-      const succeeded = [];
-      const failed = [];
+      const succeeded: GyazoImage[] = [];
+      const failed: { file: File; error: unknown }[] = [];
       results.forEach((outcome, index) => {
         if (outcome.status === "fulfilled") {
           succeeded.push(outcome.value);
-          return;
+        } else {
+          console.error("Gyazo upload failed", outcome.reason);
+          failed.push({ file: files[index], error: outcome.reason });
         }
-        console.error("Gyazo upload failed", outcome.reason);
-        failed.push({ file: files[index], error: outcome.reason });
       });
       if (succeeded.length) {
         new Notice(
@@ -126,7 +127,7 @@ class GyazoGalleryView extends ItemView {
     }
   }
 
-  async loadImages(force = false) {
+  async loadImages(force = false): Promise<void> {
     if (this.loading && !force) {
       return;
     }
@@ -139,12 +140,13 @@ class GyazoGalleryView extends ItemView {
     this.loading = true;
     this.setStatus(t.loadingImages);
     try {
-      this.images = await this.plugin.api.fetchImages();
-      if (!Array.isArray(this.images) || !this.images.length) {
+      const images = (await this.plugin.api?.fetchImages()) ?? [];
+      this.images = images;
+      if (!images.length) {
         this.renderGrid([]);
         this.setStatus(t.noImages);
       } else {
-        this.renderGrid(this.images);
+        this.renderGrid(images);
         this.setStatus("");
       }
     } catch (error) {
@@ -156,22 +158,22 @@ class GyazoGalleryView extends ItemView {
     }
   }
 
-  renderGrid(images) {
+  private renderGrid(images: GyazoImage[]): void {
     if (!this.gridEl) {
       return;
     }
-    this.gridEl.empty();
     const t = getTranslation(this.plugin.settings);
+    this.gridEl.empty();
     images.forEach((image) => {
-      const card = this.gridEl.createDiv({
+      const card = this.gridEl!.createDiv({
         cls: "gyazo-card",
-        attr: { "data-image-id": image.image_id || "" }
+        attr: { "data-image-id": image.image_id ?? "" }
       });
 
-      card.addEventListener("click", async () => {
-        await this.selectImage(image);
+      this.registerDomEvent(card, "click", () => {
+        void this.selectImage(image);
       });
-      card.addEventListener("contextmenu", (event) => {
+      this.registerDomEvent(card, "contextmenu", (event) => {
         this.showContextMenu(image, event);
       });
 
@@ -180,7 +182,7 @@ class GyazoGalleryView extends ItemView {
       });
       thumb.style.backgroundImage = `url(${image.thumb_url})`;
       thumb.setAttribute("draggable", "true");
-      thumb.addEventListener("dragstart", (event) => {
+      this.registerDomEvent(thumb, "dragstart", (event) => {
         if (!event.dataTransfer) {
           return;
         }
@@ -188,7 +190,7 @@ class GyazoGalleryView extends ItemView {
         event.dataTransfer.setData("text/plain", markdown);
       });
 
-      const type = String(image.type || "").toLowerCase();
+      const type = (image.type || "").toLowerCase();
       if (type && type !== "png") {
         thumb.createDiv({
           cls: "gyazo-type-badge",
@@ -199,9 +201,9 @@ class GyazoGalleryView extends ItemView {
       const overlay = card.createDiv({ cls: "gyazo-hover-overlay" });
       const copyButton = overlay.createDiv({ cls: "gyazo-copy-button" });
       copyButton.setText("⧉");
-      copyButton.addEventListener("click", async (event) => {
+      this.registerDomEvent(copyButton, "click", (event) => {
         event.stopPropagation();
-        await this.copyMarkdown(image);
+        void this.copyMarkdown(image);
       });
 
       if (image.image_id === this.selectedImageId) {
@@ -217,20 +219,19 @@ class GyazoGalleryView extends ItemView {
     }
   }
 
-  async selectImage(image) {
+  private async selectImage(image: GyazoImage): Promise<void> {
     this.selectedImageId = image.image_id;
     this.highlightSelection();
     await this.plugin.ensureDetailView();
     this.plugin.notifyImageSelected(image);
   }
 
-  highlightSelection() {
-    const cards = this.gridEl?.querySelectorAll(".gyazo-card");
+  private highlightSelection(): void {
+    const cards = this.gridEl?.querySelectorAll<HTMLElement>(".gyazo-card");
     if (!cards) {
       return;
     }
-    cards.forEach((element) => {
-      const card = element;
+    cards.forEach((card) => {
       if (card.getAttribute("data-image-id") === this.selectedImageId) {
         card.addClass("clicked");
       } else {
@@ -239,7 +240,7 @@ class GyazoGalleryView extends ItemView {
     });
   }
 
-  async copyMarkdown(image) {
+  private async copyMarkdown(image: GyazoImage): Promise<void> {
     const t = getTranslation(this.plugin.settings);
     const markdown = buildMarkdown(image, this.plugin.settings);
     try {
@@ -255,23 +256,25 @@ class GyazoGalleryView extends ItemView {
     }
   }
 
-  showContextMenu(image, event) {
+  private showContextMenu(image: GyazoImage, event: MouseEvent): void {
     event.preventDefault();
     const t = getTranslation(this.plugin.settings);
-    const menu = new Menu(this.app);
+    const menu = new Menu();
     const markdown = buildMarkdown(image, this.plugin.settings);
     const copyLabel = resolveCopyLabel(image.type, t);
 
     menu.addItem((item) => {
-      item.setTitle(copyLabel)
+      item
+        .setTitle(copyLabel)
         .setIcon("clipboard-copy")
-        .onClick(async () => {
-          await this.copyMarkdown(image);
+        .onClick(() => {
+          void this.copyMarkdown(image);
         });
     });
 
     menu.addItem((item) => {
-      item.setTitle(t.imageCopiedToEditor)
+      item
+        .setTitle(t.imageCopiedToEditor)
         .setIcon("pencil")
         .onClick(() => {
           const markdownView = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
@@ -279,17 +282,37 @@ class GyazoGalleryView extends ItemView {
             new Notice(markdown);
             return;
           }
-          const editor = markdownView.editor;
-          editor.replaceSelection(markdown);
+          markdownView.editor.replaceSelection(markdown);
           new Notice(t.imageCopiedToEditor);
         });
     });
 
     menu.addItem((item) => {
-      item.setTitle(t.openInBrowser)
+      item
+        .setTitle(t.copyUrl)
         .setIcon("link")
+        .onClick(async () => {
+          const url = image.permalink_url || image.url;
+          try {
+            if (navigator.clipboard) {
+              await navigator.clipboard.writeText(url);
+              new Notice(t.imageCopiedToClipboard);
+            } else {
+              throw new Error("clipboard-not-available");
+            }
+          } catch (error) {
+            console.warn("Clipboard API unavailable, falling back to notice", error);
+            new Notice(url, 4000);
+          }
+        });
+    });
+
+    menu.addItem((item) => {
+      item
+        .setTitle(t.openInBrowser)
+        .setIcon("external-link")
         .onClick(() => {
-          window.open(image.permalink_url || image.url, "_blank");
+          window.open(image.permalink_url || image.url, "_blank", "noopener noreferrer");
           new Notice(t.imageOpenedInBrowser);
         });
     });
@@ -297,7 +320,7 @@ class GyazoGalleryView extends ItemView {
     menu.showAtMouseEvent(event);
   }
 
-  setStatus(text) {
+  private setStatus(text: string): void {
     if (!this.statusEl) {
       return;
     }
@@ -307,7 +330,7 @@ class GyazoGalleryView extends ItemView {
     }
   }
 
-  refreshStrings() {
+  refreshStrings(): void {
     const t = getTranslation(this.plugin.settings);
     if (this.toolbarRefreshButton) {
       this.toolbarRefreshButton.setText(t.refreshButton);
@@ -319,7 +342,3 @@ class GyazoGalleryView extends ItemView {
     this.renderGrid(this.images);
   }
 }
-
-module.exports = {
-  GyazoGalleryView
-};

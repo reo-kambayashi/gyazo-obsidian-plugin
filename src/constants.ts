@@ -1,13 +1,18 @@
-const GYAZO_API_BASE = "https://api.gyazo.com";
-const GYAZO_UPLOAD_ENDPOINT = "https://upload.gyazo.com/api/upload";
-const VIEW_TYPE_GALLERY = "gyazo-view";
-const VIEW_TYPE_DETAIL = "gyazo-detail-view";
-const GYAZO_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" fill="none">
+import type { GyazoPluginSettings, SupportedLanguage, TranslationStrings } from "./types";
+
+export const GYAZO_API_BASE = "https://api.gyazo.com";
+export const GYAZO_UPLOAD_ENDPOINT = "https://upload.gyazo.com/api/upload";
+
+export const VIEW_TYPE_GALLERY = "gyazo-view";
+export const VIEW_TYPE_DETAIL = "gyazo-detail-view";
+
+export const GYAZO_ICON =
+  `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" fill="none">
   <path fill-rule="evenodd" clip-rule="evenodd" d="M87.5 42.8921H64.3236C56.629 42.8921 50.3838 36.8068 50.3838 29.3333V12.5H26.5391C18.7861 12.5 12.5 18.7671 12.5 26.4967V73.5033C12.5 81.2329 18.7861 87.5 26.5391 87.5H73.4609C81.2139 87.5 87.5 81.2329 87.5 73.5033V42.8921ZM71.8796 32.264C67.5296 27.98 61.4009 25.1247 54.5837 25.1247H33.8877L50.2805 8.81996V8.79675H54.4601C68.6288 8.79675 80.0903 20.132 80.0903 33.9697V41.7175H71.8796V32.264Z" fill="currentColor" />
   <path d="M51.7423 60.4235L43.9357 52.7285L48.0317 48.6809L51.7423 52.3614L59.4994 44.7207L63.5954 48.7683L51.7423 60.4235Z" fill="currentColor" />
 </svg>`;
 
-const DEFAULT_SETTINGS = {
+export const DEFAULT_SETTINGS: GyazoPluginSettings = {
   accessToken: "",
   language: "en",
   includePermalinkLinks: true,
@@ -15,7 +20,7 @@ const DEFAULT_SETTINGS = {
   imageWidth: 250
 };
 
-const TRANSLATIONS = {
+const translations: Record<SupportedLanguage, TranslationStrings> = {
   en: {
     ribbonTooltip: "Gyazo viewer",
     galleryTitle: "Gyazo Viewer",
@@ -102,18 +107,9 @@ const TRANSLATIONS = {
   }
 };
 
-const MEDIA_SUFFIX_TO_COPY_KEY = {
+export const TRANSLATIONS = translations;
+
+export const MEDIA_SUFFIX_TO_COPY_KEY: Record<string, keyof TranslationStrings> = {
   gif: "copyMarkdownGif",
   mp4: "copyMarkdownMp4"
-};
-
-module.exports = {
-  DEFAULT_SETTINGS,
-  GYAZO_API_BASE,
-  GYAZO_ICON,
-  GYAZO_UPLOAD_ENDPOINT,
-  MEDIA_SUFFIX_TO_COPY_KEY,
-  TRANSLATIONS,
-  VIEW_TYPE_DETAIL,
-  VIEW_TYPE_GALLERY
 };
